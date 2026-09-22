@@ -1,0 +1,71 @@
+# Ruff 静态检查配置
+#
+# 运行： python -m ruff check app scripts tests
+# 自动修复： python -m ruff check app scripts tests --fix
+#
+# 说明：本项目为中文技术项目，注释/文案中的全角标点（，：（））是有意为之，
+#      因此关闭 RUF001/RUF002/RUF003 三类"含义易混标点"告警，避免噪声淹没真实问题。
+
+# 行宽取 120：本项目的注释、Prompt 模板与终端输出大量使用中文，
+# 全角字符的显示宽度是字符数的两倍，88/100 会迫使中文语句被切成难以阅读的碎片。
+# 120 仍然能约束单行长度，同时允许完整的中文句子与 f-string 输出。
+line-length = 120
+target-version = "py310"
+exclude = ["data", ".venv", "venv", "__pycache__", ".pytest_cache", ".ruff_cache"]
+
+[lint]
+# 关于 BLE001（裸 except）的说明：
+#   ruff 不会对「调用 logging.* 记录异常后继续执行」的 `except Exception` 报警
+#   （实测：`except Exception:` + `logger.exception(...)` 不触发；`except Exception as e:` +
+#   `logger.warning(..., e)` 或 `pass` 会触发）。
+#   因此本项目只在后者这类「吞掉异常但不记录」的位置标注 `# noqa: BLE001`，
+#   并在同处用注释说明为何可以降级。
+select = [
+    "E",    # pycodestyle error
+    "W",    # pycodestyle warning
+    "F",    # pyflakes（未使用导入/变量等）
+    "I",    # isort（导入排序）
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear（常见陷阱）
+    "BLE",  # 裸 except 检查（本项目的降级捕获均显式标注 noqa）
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RET",  # flake8-return
+    "PERF", # perflint
+    "ARG",  # 未使用参数
+    "PTH",  # 优先使用 pathlib
+    "RUF",  # ruff 自有规则
+    "S",    # flake8-bandit（安全）
+    "TRY",  # tryceratops
+]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # 中文全角标点是有意为之
+    "S101",                        # 断言（仅在测试中使用）
+    "S104",                        # "0.0.0.0" 仅作为地址比较字面量出现，不是绑定行为
+    "S105", "S106",                # 本地默认口令占位，实际由 .env 覆盖（见 docs/06）
+    "S603", "S607",                # check_local_models.py 调用 nvidia-smi
+    "S311",                        # 非加密用途的随机数（当前未使用，预留）
+    "TRY003", "TRY300", "TRY301",  # 项目统一采用"记录日志 + 返回降级结果"风格
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917",
+    "PLR2004",                     # 少量魔法数字（维度/阈值）已在注释中说明
+    "EM101", "EM102",              # 异常文案内联更易读
+    "PLW0603",                     # 单例模式（连接池/模型/服务）有意使用模块级 global
+]
+
+[lint.per-file-ignores]
+# 脚本与演示文件需要在导入 app.* 之前注入 sys.path：
+# 该行用行内 `# noqa: E402` 精确标注（比整体忽略更能说明意图），故此处不再重复忽略。
+# 向终端打印本就是脚本职责
+"scripts/*.py" = ["T201"]
+# 测试文件：允许断言、私有成员访问（校验内部状态）、pytest fixture 形参未直接使用、
+# urllib 直连本机服务（非用户输入 URL）
+"tests/*.py" = ["S101", "SLF001", "PLR2004", "ARG001", "S310", "B008", "T201"]
+# FastAPI 依赖注入要求把 File()/Form()/Query() 写在默认值位置；
+# routes 中的局部 import 与使用点紧邻，便于阅读
+"app/api/routes.py" = ["B008", "PLC0415"]
+# 以下模块有意使用函数内延迟导入，避免未启用的可选依赖（torch/openai/pypdf）
+# 也付出导入成本或直接报错
+"app/services/embedder.py" = ["PLC0415"]
+"app/services/llm.py" = ["PLC0415"]
+"app/services/ingest.py" = ["PLC0415"]

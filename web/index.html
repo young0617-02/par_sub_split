@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>父子分块 RAG 检索系统 · 调试台</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #3fb950;
+    --warn: #d29922;
+    --danger: #f85149;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 14px; line-height: 1.6;
+  }
+  header {
+    padding: 18px 28px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    background: linear-gradient(180deg, #161b22, #0d1117);
+    position: sticky; top: 0; z-index: 20;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  header .sub { color: var(--text-dim); font-size: 12px; }
+  .badges { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .badge {
+    padding: 3px 10px; border-radius: 20px; font-size: 12px;
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--text-dim);
+  }
+  .badge.ok { color: var(--accent-2); border-color: #238636; }
+  .badge.bad { color: var(--danger); border-color: #8b2b26; }
+  main { max-width: 1240px; margin: 0 auto; padding: 22px 28px 80px; }
+  .grid { display: grid; gap: 16px; }
+  .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 900px) { .grid.cols-4, .grid.cols-2 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px;
+  }
+  .card h2 {
+    font-size: 13px; margin: 0 0 12px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: .8px; font-weight: 600;
+  }
+  .stat { font-size: 26px; font-weight: 600; line-height: 1.2; }
+  .stat-label { color: var(--text-dim); font-size: 12px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab {
+    padding: 7px 16px; border-radius: 8px; cursor: pointer; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border); color: var(--text-dim);
+    transition: all .15s;
+  }
+  .tab:hover { color: var(--text); border-color: #484f58; }
+  .tab.active { background: #1f6feb22; border-color: var(--accent); color: var(--accent); }
+  .pane { display: none; }
+  .pane.active { display: block; }
+  textarea, input, select {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; padding: 10px 12px;
+    font-family: inherit; font-size: 13px; resize: vertical;
+  }
+  textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+  label { display: block; font-size: 12px; color: var(--text-dim); margin: 12px 0 5px; }
+  button {
+    background: #238636; color: #fff; border: 1px solid #2ea043;
+    padding: 9px 20px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-family: inherit; font-weight: 500; transition: .15s;
+  }
+  button:hover { background: #2ea043; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--text-dim); border-color: var(--border); }
+  button.ghost:hover { color: var(--text); background: var(--panel-2); }
+  button.danger { background: transparent; color: var(--danger); border-color: #8b2b26; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .row > button { flex: 0 0 auto; }
+  .mt { margin-top: 14px; }
+  .result { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .parent {
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent); border-radius: var(--radius); padding: 14px 16px;
+  }
+  .parent header-line { display: block; }
+  .parent .meta {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    font-size: 12px; color: var(--text-dim); margin-bottom: 8px;
+  }
+  .pill {
+    padding: 1px 8px; border-radius: 12px; background: var(--panel-2);
+    border: 1px solid var(--border); font-size: 11px;
+  }
+  .pill.cache { color: var(--accent-2); border-color: #238636; }
+  .pill.db { color: var(--warn); border-color: #9e6a03; }
+  .pill.score { color: var(--accent); border-color: #1f6feb; }
+  .content {
+    white-space: pre-wrap; font-size: 13px; color: #c9d1d9;
+    max-height: 220px; overflow-y: auto; padding-right: 6px;
+    border-top: 1px dashed var(--border); padding-top: 9px; margin-top: 4px;
+  }
+  .children { margin-top: 10px; font-size: 12px; }
+  .children summary { cursor: pointer; color: var(--text-dim); }
+  .child {
+    padding: 7px 10px; margin-top: 6px; background: var(--panel-2);
+    border-radius: 6px; border: 1px solid var(--border);
+    font-size: 12px; color: #adbac7; white-space: pre-wrap;
+  }
+  .child .cid { color: var(--text-dim); font-family: ui-monospace, monospace; font-size: 11px; }
+  .answer {
+    background: #0d2818; border: 1px solid #238636; border-radius: var(--radius);
+    padding: 16px 18px; white-space: pre-wrap; font-size: 14px;
+  }
+  .timings { font-family: ui-monospace, monospace; font-size: 12px; color: var(--text-dim); }
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  .col-title { font-size: 12px; font-weight: 600; margin-bottom: 8px; letter-spacing: .5px; }
+  .mini { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .mini-item { padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
+  .mini-item:last-child { border-bottom: none; }
+  .mini-item .t { color: #adbac7; }
+  .mini-item .b { color: var(--text-dim); font-size: 11px; font-family: ui-monospace, monospace; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 500; font-size: 12px; }
+  code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  .hint { color: var(--text-dim); font-size: 12px; margin-top: 8px; }
+  .empty { color: var(--text-dim); font-size: 13px; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>父子分块 RAG 检索系统</h1>
+    <div class="sub">子块检索 · 父块生成 · Milvus 稀疏/稠密混合 + Redis 内容缓存</div>
+  </div>
+  <div class="badges" id="badges">
+    <span class="badge">加载中…</span>
+  </div>
+</header>
+
+<main>
+  <div class="grid cols-4" id="statsGrid">
+    <div class="card"><div class="stat" id="s-parent">-</div><div class="stat-label">MySQL 父块</div></div>
+    <div class="card"><div class="stat" id="s-child">-</div><div class="stat-label">Milvus 子块向量</div></div>
+    <div class="card"><div class="stat" id="s-doc">-</div><div class="stat-label">已入库文档</div></div>
+    <div class="card"><div class="stat" id="s-hit">-</div><div class="stat-label">Redis 缓存命中率</div></div>
+  </div>
+
+  <div class="tabs mt">
+    <div class="tab active" data-pane="chat">RAG 问答</div>
+    <div class="tab" data-pane="search">检索链路</div>
+    <div class="tab" data-pane="compare">混合检索对比</div>
+    <div class="tab" data-pane="ingest">文档入库</div>
+    <div class="tab" data-pane="docs">文档管理</div>
+  </div>
+
+  <!-- ============ RAG 问答 ============ -->
+  <div class="pane active" id="pane-chat">
+    <div class="card">
+      <h2>提问</h2>
+      <textarea id="chat-q" rows="3" placeholder="例如：父子分块为什么比固定分块好？"></textarea>
+      <div class="row mt">
+        <div><label>召回子块数 top_k</label><input id="chat-topk" type="number" value="20" min="1" max="200" /></div>
+        <div><label>送入父块数 final_top_k</label><input id="chat-final" type="number" value="4" min="1" max="50" /></div>
+        <button id="chat-btn">提问</button>
+      </div>
+      <div class="hint">链路：问题 → 稀疏+稠密混合检索 → 命中子块取 parent_id → Redis 取父块全文 → 大模型生成</div>
+    </div>
+    <div class="result" id="chat-result"></div>
+  </div>
+
+  <!-- ============ 检索链路 ============ -->
+  <div class="pane" id="pane-search">
+    <div class="card">
+      <h2>只检索，不生成</h2>
+      <textarea id="search-q" rows="2" placeholder="输入检索问题"></textarea>
+      <div class="row mt">
+        <div><label>top_k</label><input id="search-topk" type="number" value="20" min="1" max="200" /></div>
+        <div><label>final_top_k</label><input id="search-final" type="number" value="4" min="1" max="50" /></div>
+        <div><label>启用稀疏分支</label>
+          <select id="search-sparse"><option value="true">开启</option><option value="false">关闭</option></select>
+        </div>
+        <button id="search-btn">检索</button>
+      </div>
+    </div>
+    <div class="result" id="search-result"></div>
+  </div>
+
+  <!-- ============ 对比实验 ============ -->
+  <div class="pane" id="pane-compare">
+    <div class="card">
+      <h2>稠密 / 稀疏 / 混合 三路对比</h2>
+      <textarea id="cmp-q" rows="2" placeholder="输入一个查询，观察三路召回差异"></textarea>
+      <div class="row mt">
+        <div><label>每路召回数</label><input id="cmp-topk" type="number" value="10" min="1" max="100" /></div>
+        <button id="cmp-btn">对比</button>
+      </div>
+      <div class="hint">稀疏分支擅长专有名词、错误码、型号等精确词命中；稠密分支擅长语义泛化。混合检索兼顾两者。</div>
+    </div>
+    <div class="result" id="cmp-result"></div>
+  </div>
+
+  <!-- ============ 入库 ============ -->
+  <div class="pane" id="pane-ingest">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>粘贴文本入库</h2>
+        <label>标题</label>
+        <input id="ing-title" placeholder="文档标题" />
+        <label>正文（支持 Markdown 标题，会按标题切父块）</label>
+        <textarea id="ing-content" rows="10" placeholder="# 一级标题&#10;&#10;正文段落…"></textarea>
+        <div class="row mt">
+          <div><label>doc_id（可选）</label><input id="ing-docid" placeholder="留空自动生成" /></div>
+          <div><label>强制重建</label>
+            <select id="ing-force"><option value="false">否（幂等追加）</option><option value="true">是（先删后建）</option></select>
+          </div>
+          <button id="ing-btn">入库</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>上传文件</h2>
+        <label>选择 .md / .txt / .pdf</label>
+        <input id="up-file" type="file" accept=".md,.txt,.pdf,.markdown" />
+        <div class="row mt">
+          <button id="up-btn" class="ghost">上传并入库</button>
+        </div>
+        <div class="hint">入库会同时写三处：MySQL（父块 + 自增 id）、Redis（key = parent_id）、Milvus（子块双向量 + parent_id）。</div>
+      </div>
+    </div>
+    <div class="result" id="ing-result"></div>
+  </div>
+
+  <!-- ============ 文档管理 ============ -->
+  <div class="pane" id="pane-docs">
+    <div class="card">
+      <h2>已入库文档</h2>
+      <div class="row"><button id="docs-refresh" class="ghost">刷新</button></div>
+      <div id="docs-table" class="mt"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API = "/api/v1";
+
+/* ---------------- 通用工具 ---------------- */
+async function call(path, opts = {}) {
+  const res = await fetch(API + path, opts);
+  const text = await res.text();
+  let data;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) throw new Error((data && data.detail) || `HTTP ${res.status}`);
+  return data;
+}
+const jsonPost = (path, body) =>
+  call(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function timingBadge(t) {
+  if (!t) return "";
+  return Object.entries(t)
+    .map(([k, v]) => `${k}=${typeof v === "number" ? v.toFixed(2) : v}`)
+    .join("  ");
+}
+
+/* ---------------- 父子块渲染 ---------------- */
+function renderParents(parents) {
+  if (!parents || !parents.length) return `<div class="card"><div class="empty">没有检索到结果</div></div>`;
+  return parents.map((p) => `
+    <div class="parent">
+      <div class="meta">
+        <span class="pill score">父文档 #${p.parent_id}</span>
+        <span class="pill">${esc(p.title || "未命名")}</span>
+        ${p.heading_path ? `<span class="pill">${esc(p.heading_path)}</span>` : ""}
+        <span class="pill score">score ${p.score}</span>
+        <span class="pill">${p.child_hits.length} 个子块命中</span>
+        <span class="pill ${p.cache_hit ? "cache" : "db"}">${p.cache_hit ? "Redis 命中" : "回表 MySQL"}</span>
+      </div>
+      <div class="content">${esc(p.content)}</div>
+      <details class="children">
+        <summary>查看命中的子块与分支排名（${p.child_hits.length}）</summary>
+        ${p.child_hits.map((c) => `
+          <div class="child">
+            <span class="cid">${esc(c.chunk_id).slice(0, 16)}…</span>
+            <span class="cid">｜chr#${c.chunk_index}｜score ${c.score}</span>
+            ${c.dense_rank != null ? `<span class="cid">｜稠密#${c.dense_rank}</span>` : ""}
+            ${c.sparse_rank != null ? `<span class="cid">｜稀疏#${c.sparse_rank}</span>` : ""}
+            <div>${esc(c.content)}</div>
+          </div>`).join("")}
+      </details>
+    </div>`).join("");
+}
+
+/* ---------------- 状态与统计 ---------------- */
+async function loadStatus() {
+  const badges = document.getElementById("badges");
+  try {
+    const [h, s] = await Promise.all([call("/health"), call("/stats")]);
+    const mk = (name, ok) => `<span class="badge ${ok ? "ok" : "bad"}">${name} ${ok ? "已连接" : "异常"}</span>`;
+    badges.innerHTML =
+      mk("MySQL", h.mysql) + mk("Redis", h.redis) + mk("Milvus", h.milvus) +
+      `<span class="badge">Embedding: ${esc(h.detail.embedding?.provider)}/${h.detail.embedding?.dim}d</span>` +
+      `<span class="badge">稀疏: ${h.detail.sparse?.enabled ? "开" : "关"}</span>` +
+      `<span class="badge ${h.detail.llm_mode === "openai" ? "ok" : ""}">LLM: ${esc(h.detail.llm_mode)}</span>`;
+
+    document.getElementById("s-parent").textContent = s.mysql_parent_count;
+    document.getElementById("s-child").textContent = s.milvus_child_count;
+    document.getElementById("s-doc").textContent = s.mysql_doc_count;
+    document.getElementById("s-hit").textContent =
+      s.cache_requests ? (s.cache_hit_rate * 100).toFixed(1) + "%" : "暂无数据";
+  } catch (e) {
+    badges.innerHTML = `<span class="badge bad">服务异常：${esc(e.message)}</span>`;
+  }
+}
+
+/* ---------------- Tab 切换 ---------------- */
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.onclick = () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".pane").forEach((p) => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("pane-" + tab.dataset.pane).classList.add("active");
+    if (tab.dataset.pane === "docs") loadDocs();
+  };
+});
+
+/* ---------------- RAG 问答 ---------------- */
+document.getElementById("chat-btn").onclick = async () => {
+  const btn = document.getElementById("chat-btn");
+  const box = document.getElementById("chat-result");
+  const q = document.getElementById("chat-q").value.trim();
+  if (!q) return;
+  btn.disabled = true;
+  box.innerHTML = `<div class="card"><div class="empty">检索与生成中…</div></div>`;
+  try {
+    const r = await jsonPost("/chat", {
+      query: q,
+      top_k: +document.getElementById("chat-topk").value,
+      final_top_k: +document.getElementById("chat-final").value,
+      use_sparse: true,
+    });
+    box.innerHTML = `
+      <div class="card">
+        <h2>回答 · LLM 模式：${esc(r.llm_mode)}</h2>
+        <div class="answer">${esc(r.answer)}</div>
+        <div class="hint">引用父文档：${r.citations.map((c) => "#" + c.parent_id).join("、") || "无"}</div>
+        <div class="timings mt">耗时(ms) ${timingBadge(r.timings)}</div>
+      </div>
+      <div class="card"><h2>作为上下文的父文档（${r.parents.length}）</h2></div>
+      ${renderParents(r.parents)}`;
+    loadStatus();
+  } catch (e) {
+    box.innerHTML = `<div class="card"><div class="empty">失败：${esc(e.message)}</div></div>`;
+  } finally { btn.disabled = false; }
+};
+
+/* ---------------- 检索 ---------------- */
+document.getElementById("search-btn").onclick = async () => {
+  const btn = document.getElementById("search-btn");
+  const box = document.getElementById("search-result");
+  const q = document.getElementById("search-q").value.trim();
+  if (!q) return;
+  btn.disabled = true;
+  box.innerHTML = `<div class="card"><div class="empty">检索中…</div></div>`;
+  try {
+    const r = await jsonPost("/search", {
+      query: q,
+      top_k: +document.getElementById("search-topk").value,
+      final_top_k: +document.getElementById("search-final").value,
+      use_sparse: document.getElementById("search-sparse").value === "true",
+    });
+    box.innerHTML = `
+      <div class="card">
+        <h2>命中父块 ${r.parents.length} 个</h2>
+        <div class="timings">耗时(ms) ${timingBadge(r.timings)}</div>
+      </div>
+      ${renderParents(r.parents)}`;
+    loadStatus();
+  } catch (e) {
+    box.innerHTML = `<div class="card"><div class="empty">失败：${esc(e.message)}</div></div>`;
+  } finally { btn.disabled = false; }
+};
+
+/* ---------------- 对比实验 ---------------- */
+document.getElementById("cmp-btn").onclick = async () => {
+  const btn = document.getElementById("cmp-btn");
+  const box = document.getElementById("cmp-result");
+  const q = document.getElementById("cmp-q").value.trim();
+  if (!q) return;
+  btn.disabled = true;
+  box.innerHTML = `<div class="card"><div class="empty">对比中…</div></div>`;
+  try {
+    const r = await jsonPost("/compare", {
+      query: q, top_k: +document.getElementById("cmp-topk").value, final_top_k: 4, use_sparse: true,
+    });
+    const col = (title, list, color) => `
+      <div class="mini">
+        <div class="col-title" style="color:${color}">${title} · ${list.length} 个父块</div>
+        ${list.length ? list.map((x) => `
+          <div class="mini-item">
+            <div class="t">#${x.parent_id} ${esc(x.content)}…</div>
+            <div class="b">score ${x.score} ｜ chunk ${esc(x.chunk_id).slice(0, 10)}…</div>
+          </div>`).join("") : `<div class="empty">无结果</div>`}
+      </div>`;
+    const a = r.analysis;
+    box.innerHTML = `
+      <div class="card">
+        <h2>三路召回对比</h2>
+        <div class="cols">
+          ${col("稠密（语义）", r.dense_only, "#58a6ff")}
+          ${col("稀疏（BM25）", r.sparse_only, "#d29922")}
+          ${col("混合（RRF 融合）", r.hybrid, "#3fb950")}
+        </div>
+        <div class="hint mt">
+          稀疏分支词元数 ${r.sparse_query_tokens} ｜ 稠密独有父块 ${a.only_in_dense.join("、") || "无"} ｜
+          稀疏独有父块 ${a.only_in_sparse.join("、") || "无"} ｜ 两路重叠 ${a.overlap_parents} 个
+          ｜ 耗时(ms) ${timingBadge(r.timings)}
+        </div>
+      </div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="card"><div class="empty">失败：${esc(e.message)}</div></div>`;
+  } finally { btn.disabled = false; }
+};
+
+/* ---------------- 入库 ---------------- */
+function renderIngest(r) {
+  const t = r.detail?.timing_ms || {};
+  const cs = r.detail?.chunk_stats || {};
+  return `
+    <div class="card">
+      <h2>入库成功</h2>
+      <div>doc_id：<code>${esc(r.doc_id)}</code></div>
+      <div>父块 ${r.parent_count} 个（ids: ${r.parent_ids.join(", ")}）｜子块 ${r.child_count} 个｜总耗时 ${r.elapsed_ms}ms</div>
+      <div class="hint">
+        分块统计：父块均长 ${cs.avg_parent_chars} 字，子块均长 ${cs.avg_child_chars} 字，最大父块 ${cs.max_parent_chars} 字<br />
+        写入耗时(ms)：切分 ${t.split} ｜ MySQL ${t.mysql} ｜ Redis ${t.redis} ｜ Milvus ${t.milvus}
+      </div>
+    </div>`;
+}
+
+document.getElementById("ing-btn").onclick = async () => {
+  const btn = document.getElementById("ing-btn");
+  const box = document.getElementById("ing-result");
+  const content = document.getElementById("ing-content").value;
+  if (!content.trim()) { box.innerHTML = `<div class="card"><div class="empty">请填写正文</div></div>`; return; }
+  btn.disabled = true;
+  box.innerHTML = `<div class="card"><div class="empty">入库中…</div></div>`;
+  try {
+    const r = await jsonPost("/documents", {
+      title: document.getElementById("ing-title").value || "未命名文档",
+      content,
+      doc_id: document.getElementById("ing-docid").value || null,
+      source: "web-console",
+      force_reindex: document.getElementById("ing-force").value === "true",
+    });
+    box.innerHTML = renderIngest(r);
+    loadStatus();
+  } catch (e) {
+    box.innerHTML = `<div class="card"><div class="empty">失败：${esc(e.message)}</div></div>`;
+  } finally { btn.disabled = false; }
+};
+
+document.getElementById("up-btn").onclick = async () => {
+  const input = document.getElementById("up-file");
+  const box = document.getElementById("ing-result");
+  if (!input.files.length) { box.innerHTML = `<div class="card"><div class="empty">请先选择文件</div></div>`; return; }
+  const fd = new FormData();
+  fd.append("file", input.files[0]);
+  box.innerHTML = `<div class="card"><div class="empty">上传中…</div></div>`;
+  try {
+    const r = await call("/documents/upload", { method: "POST", body: fd });
+    box.innerHTML = renderIngest(r);
+    loadStatus();
+  } catch (e) {
+    box.innerHTML = `<div class="card"><div class="empty">失败：${esc(e.message)}</div></div>`;
+  }
+};
+
+/* ---------------- 文档管理 ---------------- */
+async function loadDocs() {
+  const box = document.getElementById("docs-table");
+  box.innerHTML = `<div class="empty">加载中…</div>`;
+  try {
+    const list = await call("/documents");
+    if (!list.length) { box.innerHTML = `<div class="empty">还没有文档，先去「文档入库」灌几篇</div>`; return; }
+    box.innerHTML = `<table>
+      <thead><tr><th>doc_id</th><th>标题</th><th>父块</th><th>子块</th><th>创建时间</th><th></th></tr></thead>
+      <tbody>${list.map((d) => `
+        <tr>
+          <td><code>${esc(d.doc_id)}</code></td>
+          <td>${esc(d.title)}</td>
+          <td>${d.parent_count}</td>
+          <td>${d.child_count}</td>
+          <td>${esc(d.created_at)}</td>
+          <td><button class="danger" data-del="${esc(d.doc_id)}">删除</button></td>
+        </tr>`).join("")}</tbody>
+    </table>`;
+    box.querySelectorAll("[data-del]").forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm("将同时删除 MySQL 父块、Redis 缓存与 Milvus 向量，确认？")) return;
+        await call("/documents/" + encodeURIComponent(b.dataset.del), { method: "DELETE" });
+        loadDocs(); loadStatus();
+      };
+    });
+  } catch (e) {
+    box.innerHTML = `<div class="empty">失败：${esc(e.message)}</div>`;
+  }
+}
+document.getElementById("docs-refresh").onclick = loadDocs;
+
+loadStatus();
+setInterval(loadStatus, 20000);
+</script>
+</body>
+</html>

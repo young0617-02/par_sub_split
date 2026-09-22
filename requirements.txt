@@ -1,0 +1,49 @@
+# =====================================================================
+# 运行环境： Python >= 3.10（本机验证于 3.12.8）
+# 安装：      python -m pip install -r requirements.txt
+# =====================================================================
+
+# ---------------------- 核心存储客户端 ----------------------
+pymilvus>=2.5,<4.0          # Milvus 客户端（稀疏 + 稠密混合检索、RRF 融合）
+SQLAlchemy>=2.0             # ORM 与连接池
+PyMySQL>=1.1                # MySQL 驱动
+redis>=5.0                  # Redis 客户端（连接池 + 父块内容缓存）
+
+# ---------------------- Web 服务 ----------------------
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9     # 文件上传（multipart/form-data）解析
+
+# ---------------------- 配置与数据校验 ----------------------
+pydantic>=2.6
+pydantic-settings>=2.2      # 环境变量 / .env -> 强类型配置
+python-dotenv>=1.0
+
+# ---------------------- 算法与文本处理 ----------------------
+numpy>=1.26
+jieba>=0.42.1               # 中文分词（BM25 稀疏向量）
+
+# ---------------------- 文档解析 ----------------------
+pypdf>=4.0                  # PDF 文本抽取
+
+# ---------------------- 大模型 / Embedding API ----------------------
+# OpenAI 兼容协议客户端。本地 Ollama（LLM_PROVIDER=ollama）与外部
+# OpenAI / 通义 / DeepSeek / SiliconFlow 等均通过该 SDK 调用。
+openai>=1.30
+
+# ---------------------- 开发与质量保障 ----------------------
+pytest>=8.0                 # 运行 tests/
+ruff>=0.6                   # 静态检查：python -m ruff check app scripts tests
+
+# =====================================================================
+# 以下为「可选」依赖：仅在启用本地模型时才需要，故不默认安装
+#   · EMBEDDING_PROVIDER=local      -> 需要 sentence-transformers + torch
+#   · RERANK_ENABLED=true           -> 需要 sentence-transformers + torch
+# CPU 版（体积小，本机 8GB 显存留给 7B LLM 时的推荐方案）：
+#   python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   python -m pip install sentence-transformers transformers
+# GPU 版：请按 https://pytorch.org 选择与驱动匹配的 CUDA 版本安装命令
+# =====================================================================
+# torch>=2.2
+# sentence-transformers>=3.0
+# transformers>=4.40
